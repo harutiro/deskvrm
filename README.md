@@ -33,3 +33,18 @@ dmgファイルからアプリをApplicationsに移して実行しようとす�
 ```bash
 sudo xattr -rd com.apple.quarantine /Applications/deskvrm.app
 ```
+
+
+# デスクトップ版でビルドをする方法
+
+以下のコマンドでデスクトップ版を表示できます。
+
+```bash
+npm run tauri dev
+```
+
+このコマンドでbuildができます。
+
+```bash
+npm run tauri build 
+```
