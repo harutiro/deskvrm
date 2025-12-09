@@ -10,6 +10,7 @@ import { emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/tauri";
 import type { OnUpdateCallback } from "@/types/vrm";
 import type { MutableRefObject } from "react";
+import { createVrmAnimator, type VrmAnimator } from "./vrmAnimator";
 
 interface VrmRendererConfig {
   container: HTMLDivElement;
@@ -20,6 +21,7 @@ interface VrmRendererConfig {
 
 interface RendererState {
   vrm: VRM | null;
+  animator: VrmAnimator | null;
   mouseWheel: number;
   mouseDownTime: number;
   mouseDownCount: number;
@@ -233,8 +235,15 @@ export function initializeVrmRenderer(config: VrmRendererConfig): void {
   setupLighting(scene, lightIntensity);
   scene.add(back);
 
+  const animator = createVrmAnimator({
+    enableBlink: true,
+    enableBreathing: false,
+    enableIdleMotion: false,
+  });
+
   const state: RendererState = {
     vrm: null,
+    animator,
     mouseWheel: 0,
     mouseDownTime: 0,
     mouseDownCount: 0,
@@ -253,8 +262,9 @@ export function initializeVrmRenderer(config: VrmRendererConfig): void {
     modelData,
     (vrm) => {
       state.vrm = vrm;
+      state.animator?.setVrm(vrm);
       scene.add(vrm.scene);
-      console.log("VRM model added to scene");
+      console.log("VRM model added to scene with animations enabled");
     },
     (error) => {
       console.error("Failed to load VRM:", error);
@@ -265,6 +275,9 @@ export function initializeVrmRenderer(config: VrmRendererConfig): void {
 
   const animate = (): void => {
     requestAnimationFrame(animate);
+
+    // Update animations (blink, breathing, idle motion, spring bones)
+    state.animator?.update();
 
     if (state.vrm) {
       updateCameraAndWindow(
