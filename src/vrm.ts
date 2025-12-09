@@ -1,14 +1,12 @@
 import * as Three from "three";
 // @ts-ignore
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader";
-// @ts-ignore
-import { OrbitControls } from "three/addons/controls/OrbitControls";
 import { VRM, VRMLoaderPlugin, VRMHumanBoneName } from "@pixiv/three-vrm";
-import { VRMAnimationLoaderPlugin } from "@pixiv/three-vrm-animation";
 import { MutableRefObject } from "react";
 
 import { appWindow, LogicalSize } from "@tauri-apps/api/window";
 import { emit } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/tauri";
 
 export const loadModel = <T extends Function>(
   render: HTMLDivElement,
@@ -25,7 +23,7 @@ export const loadModel = <T extends Function>(
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(render.clientWidth, render.clientHeight);
   renderer.setClearAlpha(0);
-  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.enabled = false;
   const elem = renderer.domElement;
 
   if (render.hasChildNodes()) {
@@ -47,21 +45,14 @@ export const loadModel = <T extends Function>(
   scene.add(light);
   const shadowLight = new Three.DirectionalLight(0xffffff, 1);
   shadowLight.position.set(-0.5, -3.0, -10.0).normalize();
-  shadowLight.castShadow = true;
-  shadowLight.shadow.mapSize.width = 2048;
-  shadowLight.shadow.mapSize.height = 2048;
-  //shadowLight.shadow.radius = 5;
+  shadowLight.castShadow = false;
   scene.add(shadowLight);
 
   let vrm: VRM | null = null;
-  let mixer: Three.AnimationMixer | null = null;
 
   const loader = new GLTFLoader();
   loader.register((parser: any) => {
     return new VRMLoaderPlugin(parser);
-  });
-  loader.register((parser: any) => {
-    return new VRMAnimationLoaderPlugin(parser);
   });
   loader.parse(
     model,
@@ -79,24 +70,8 @@ export const loadModel = <T extends Function>(
           .getRawBoneNode(VRMHumanBoneName.RightUpperArm)
           ?.rotateZ(Math.PI / -2.6);
         vrm.scene.traverse((object) => {
-          object.castShadow = true;
+          object.castShadow = false;
         });
-
-        /*
-        loader.load("/ashi_batabata.vrma", (gltf: any) => {
-          if (vrm) {
-            const vrmAnimations = gltf.userData.vrmAnimations;
-            if (vrmAnimations == null) {
-              return;
-            }
-            animation = vrmAnimations[0] ?? null;
-            // animation
-            //mixer = new Three.AnimationMixer(vrm.scene);
-            //const clip = createVRMAnimationClip(animation, vrm);
-            //mixer.clipAction(clip).play();
-          }
-        });
-        */
       }
     },
     (progress: any) => {
@@ -112,11 +87,24 @@ export const loadModel = <T extends Function>(
     new Three.ShadowMaterial({ opacity: 0.5 }),
   );
   back.position.set(0, 0, 2);
-  back.receiveShadow = true;
+  back.receiveShadow = false;
   scene.add(back);
 
-  const clock = new Three.Clock();
-  clock.start();
+  // Track previous window size to avoid unnecessary updates
+  let prevWidth = 0;
+  let prevHeight = 0;
+
+  // Debounced invalidateShadow to fix ghost artifacts without heavy performance impact
+  let shadowInvalidationPending = false;
+  const scheduleInvalidateShadow = () => {
+    if (!shadowInvalidationPending) {
+      shadowInvalidationPending = true;
+      setTimeout(() => {
+        invoke("invalidate_shadow");
+        shadowInvalidationPending = false;
+      }, 16); // ~60fps throttle
+    }
+  };
 
   // mouse events
   let mouseWheel = 0;
@@ -148,21 +136,14 @@ export const loadModel = <T extends Function>(
         emit("cursor_grab", { grab: true });
         vrm.scene.rotation.x -= e.movementY / 100 / Math.PI / 2;
         vrm.scene.rotation.y += e.movementX / 100 / Math.PI / 2;
+        // Invalidate shadow when rotating to fix ghost artifact
+        scheduleInvalidateShadow();
       }
     }
   });
 
   const update = async () => {
     requestAnimationFrame(update);
-
-    //const delta = clock.getDelta();
-    if (mixer) {
-      // animation
-      //mixer.update(delta);
-    }
-    if (vrm) {
-      //vrm.update(delta);
-    }
 
     if (vrm) {
       vrm.scene.position.x = 0;
@@ -187,17 +168,27 @@ export const loadModel = <T extends Function>(
       const aspect =
         (vrmBounding.max.x - vrmBounding.min.x) /
         (vrmBounding.max.y - vrmBounding.min.y);
-      const width = (500 + mouseWheel) * aspect;
-      const height = 500 + mouseWheel;
-      appWindow.setSize(new LogicalSize(width, height));
-      renderer.setSize(width, height);
-      renderer.setPixelRatio(window.devicePixelRatio);
+      const width = Math.round((500 + mouseWheel) * aspect);
+      const height = Math.round(500 + mouseWheel);
+
+      // Only update window size if it actually changed
+      if (width !== prevWidth || height !== prevHeight) {
+        prevWidth = width;
+        prevHeight = height;
+        appWindow.setSize(new LogicalSize(width, height));
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        // Invalidate shadow to fix ghost artifact on macOS transparent windows
+        scheduleInvalidateShadow();
+      }
       camera.aspect = aspect;
       camera.updateProjectionMatrix();
     }
 
     if (onUpdate.current) {
       onUpdate.current(vrm);
+      // Invalidate shadow after head rotation update
+      scheduleInvalidateShadow();
     }
 
     renderer.render(scene, camera);

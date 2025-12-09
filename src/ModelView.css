@@ -6,6 +6,7 @@
   left: 0;
   overflow: hidden;
   border: none;
+  background: transparent !important;
 }
 
 .white {

@@ -4,6 +4,21 @@ use mouse_position::mouse_position::Mouse;
 use std::path::PathBuf;
 use tauri::Manager;
 
+#[cfg(target_os = "macos")]
+use cocoa::appkit::NSWindow;
+
+#[tauri::command]
+fn invalidate_shadow(window: tauri::Window) {
+    #[cfg(target_os = "macos")]
+    {
+        use cocoa::base::id;
+        let ns_window = window.ns_window().unwrap() as id;
+        unsafe {
+            ns_window.invalidateShadow();
+        }
+    }
+}
+
 #[derive(serde::Serialize, Clone)]
 struct MousePosition {
     x: i32,
@@ -25,6 +40,7 @@ struct ModelList {
 fn main() {
     simple_logger::init_with_env().unwrap();
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![invalidate_shadow])
         .setup(|app| {
             let app_handle = app.app_handle();
             tauri::async_runtime::spawn(async move {
@@ -57,8 +73,6 @@ fn main() {
                             .build()
                             {
                                 let _ = window.show();
-                                //#[cfg(any(windows, target_os = "macos"))]
-                                //let _ = set_shadow(&window, false);
                             }
                         }
                     }
