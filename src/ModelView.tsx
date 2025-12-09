@@ -24,7 +24,8 @@ function App() {
     null,
   );
 
-  const onUpdateRef = useRef((_vrm: VRM | null) => {});
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const onUpdateRef = useRef((_: VRM | null) => {});
   useEffect(() => {
     onUpdateRef.current = async (vrm: VRM | null) => {
       if (vrm) {
@@ -47,7 +48,7 @@ function App() {
             ),
             Math.PI / -4,
           );
-          let head = vrm.humanoid.getRawBoneNode(VRMHumanBoneName.Head);
+          const head = vrm.humanoid.getRawBoneNode(VRMHumanBoneName.Head);
           if (head) {
             head.rotation.x = rotationX;
             head.rotation.y = rotationY;
@@ -61,7 +62,7 @@ function App() {
         new LogicalPosition(mouseX - moveOffset.x, mouseY - moveOffset.y),
       );
     }
-  }, [mouseX, mouseY]);
+  }, [mouseX, mouseY, moveOffset]);
 
   const onClick: MouseEventHandler = async (e) => {
     e.preventDefault();
@@ -88,20 +89,27 @@ function App() {
 
   useEffect(() => {
     (async () => {
+      console.log("ModelView useEffect, vrm param:", vrm);
       if (vrm) {
+        console.log("Fetching model...");
         const model = await readModel(vrm);
+        console.log("Model fetched:", model ? `${model.byteLength} bytes` : "null");
         if (model) {
-          loadModel(render.current!, model.buffer, 2, onUpdateRef);
+          console.log("Calling loadModel with render.current:", render.current);
+          loadModel(render.current!, model.buffer as ArrayBuffer, 2, onUpdateRef);
+        } else {
+          console.error("Failed to fetch model");
         }
       } else {
+        console.log("No vrm param, closing window");
         appWindow.close();
       }
     })();
-    listen("mouse_position", (event: any) => {
+    listen<{ x: number; y: number }>("mouse_position", (event) => {
       setMouseX(event.payload.x);
       setMouseY(event.payload.y);
     });
-  }, []);
+  }, [vrm]);
 
   return (
     <>

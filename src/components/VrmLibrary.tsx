@@ -2,10 +2,10 @@ import { useState, useEffect, ChangeEventHandler } from "react";
 import { listModel, writeModel } from "@/util/fetch";
 
 type Props = {
-  onSelect: (path: string) => any;
+  onSelect: (path: string) => void;
 };
 
-export default ({ onSelect }: Props) => {
+function VrmLibrary({ onSelect }: Props) {
   const [models, setModels] = useState<string[]>([]);
   const [processing, setProcessing] = useState(false);
   const readModels = async () => {
@@ -18,7 +18,7 @@ export default ({ onSelect }: Props) => {
 
   const onFileChange: ChangeEventHandler<HTMLInputElement> = async (e) => {
     if (e.target instanceof HTMLInputElement) {
-      let files = e.target.files;
+      const files = e.target.files;
       if (files && files.length === 1) {
         const file = files[0];
         if (file.name.endsWith(".vrm")) {
@@ -62,4 +62,6 @@ export default ({ onSelect }: Props) => {
       )}
     </div>
   );
-};
+}
+
+export default VrmLibrary;

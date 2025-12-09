@@ -1,19 +1,22 @@
 import * as Three from "three";
-// @ts-ignore
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader";
+import { GLTFLoader, type GLTF } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin, VRMHumanBoneName } from "@pixiv/three-vrm";
+import type { GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MutableRefObject } from "react";
 
 import { appWindow, LogicalSize } from "@tauri-apps/api/window";
 import { emit } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/tauri";
 
-export const loadModel = <T extends Function>(
+type OnUpdateCallback = (vrm: VRM | null) => void;
+
+export const loadModel = (
   render: HTMLDivElement,
   model: ArrayBuffer,
   lightP: number,
-  onUpdate: MutableRefObject<T>,
+  onUpdate: MutableRefObject<OnUpdateCallback>,
 ) => {
+  console.log("loadModel called, model size:", model.byteLength);
   const scene = new Three.Scene();
 
   const renderer = new Three.WebGLRenderer({
@@ -27,8 +30,10 @@ export const loadModel = <T extends Function>(
   const elem = renderer.domElement;
 
   if (render.hasChildNodes()) {
+    console.log("render already has children, skipping");
     return;
   }
+  console.log("appending canvas to render element");
   render.appendChild(elem);
 
   const camera = new Three.PerspectiveCamera(
@@ -51,16 +56,18 @@ export const loadModel = <T extends Function>(
   let vrm: VRM | null = null;
 
   const loader = new GLTFLoader();
-  loader.register((parser: any) => {
+  loader.register((parser: GLTFParser) => {
     return new VRMLoaderPlugin(parser);
   });
   loader.parse(
     model,
     "test.vrm",
-    (gltf: any) => {
-      vrm = gltf.userData.vrm;
+    (gltf: GLTF) => {
+      console.log("GLTF loaded successfully", gltf);
+      vrm = gltf.userData.vrm as VRM;
 
       if (vrm) {
+        console.log("VRM model found, adding to scene");
         scene.add(vrm.scene);
 
         vrm.humanoid
@@ -72,13 +79,12 @@ export const loadModel = <T extends Function>(
         vrm.scene.traverse((object) => {
           object.castShadow = false;
         });
+      } else {
+        console.error("VRM not found in GLTF userData");
       }
     },
-    (progress: any) => {
-      console.log("loading: ", (100.0 * progress.loaded) / progress.total, "%");
-    },
-    (error: any) => {
-      console.error(error);
+    (error: unknown) => {
+      console.error("GLTF parse error:", error);
     },
   );
 

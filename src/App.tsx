@@ -4,7 +4,7 @@ import { exit } from "@tauri-apps/api/process";
 import VrmLibrary from "@/components/VrmLibrary";
 import "@/App.css";
 
-export default () => {
+function App() {
   const onVrmSelect = async (name: string) => {
     emit("modelView", { vrm: encodeURIComponent(name) });
     await appWindow.hide();
@@ -25,4 +25,6 @@ export default () => {
       </p>
     </div>
   );
-};
+}
+
+export default App;

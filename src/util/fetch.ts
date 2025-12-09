@@ -16,7 +16,7 @@ export const readModel = async (name: string): Promise<Uint8Array | null> => {
   }
 };
 
-export const writeModel = async (name: string, body: ArrayBufferLike) => {
+export const writeModel = async (name: string, body: ArrayBuffer) => {
   await fetch(new URL(`http://localhost:8108/vrm/${name}`), {
     method: "POST",
     body,
