@@ -1,9 +1,10 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { appWindow, currentMonitor } from "@tauri-apps/api/window";
 import { VRM, VRMHumanBoneName } from "@pixiv/three-vrm";
 import { initializeVrmRenderer } from "@/services/vrmRenderer";
 import { readModel } from "@/util/fetch";
 import type { OnUpdateCallback, MousePosition } from "@/types/vrm";
+import type { VrmAnimator } from "@/services/vrmAnimator";
 
 interface UseVrmLoaderOptions {
   vrmName: string | undefined;
@@ -11,12 +12,19 @@ interface UseVrmLoaderOptions {
   mousePosition: MousePosition;
 }
 
+interface UseVrmLoaderResult {
+  animator: VrmAnimator | null;
+  isLoading: boolean;
+}
+
 export function useVrmLoader({
   vrmName,
   containerRef,
   mousePosition,
-}: UseVrmLoaderOptions): void {
+}: UseVrmLoaderOptions): UseVrmLoaderResult {
   const onUpdateRef = useRef<OnUpdateCallback>(() => {});
+  const [animator, setAnimator] = useState<VrmAnimator | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const updateHeadRotation = useCallback(
     async (vrm: VRM | null) => {
@@ -83,14 +91,19 @@ export function useVrmLoader({
 
       console.log("Model fetched:", modelData.byteLength, "bytes");
 
-      initializeVrmRenderer({
+      const result = await initializeVrmRenderer({
         container: containerRef.current,
         modelData: modelData.buffer as ArrayBuffer,
         lightIntensity: 2,
         onUpdateRef,
       });
+
+      setAnimator(result.animator);
+      setIsLoading(false);
     };
 
     loadVrm();
   }, [vrmName, containerRef]);
+
+  return { animator, isLoading };
 }

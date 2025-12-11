@@ -1,12 +1,16 @@
 import { useState, useCallback, useRef } from "react";
-import { appWindow, getAll } from "@tauri-apps/api/window";
 
-interface UseDoubleClickResult {
+interface UseMultiClickOptions {
+  onDoubleClick?: () => void;
+  onTripleClick?: () => void;
+}
+
+interface UseMultiClickResult {
   handleClick: () => Promise<void>;
   handleMouseDown: () => void;
 }
 
-export function useDoubleClick(): UseDoubleClickResult {
+export function useDoubleClick(options?: UseMultiClickOptions): UseMultiClickResult {
   const [clickCount, setClickCount] = useState(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -17,20 +21,19 @@ export function useDoubleClick(): UseDoubleClickResult {
 
     timeoutRef.current = setTimeout(() => {
       setClickCount(0);
-    }, 600);
+    }, 800);
 
     setClickCount((prev) => prev + 1);
   }, []);
 
   const handleClick = useCallback(async () => {
     if (clickCount === 2) {
-      const configWindow = getAll().find((w) => w.label === "config");
-      if (configWindow) {
-        await configWindow.show();
-        await appWindow.close();
-      }
+      options?.onDoubleClick?.();
+    } else if (clickCount === 3) {
+      options?.onTripleClick?.();
+      setClickCount(0);
     }
-  }, [clickCount]);
+  }, [clickCount, options]);
 
   return {
     handleClick,

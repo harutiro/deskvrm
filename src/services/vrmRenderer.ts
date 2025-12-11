@@ -19,6 +19,11 @@ interface VrmRendererConfig {
   onUpdateRef: MutableRefObject<OnUpdateCallback>;
 }
 
+interface VrmRendererResult {
+  animator: VrmAnimator;
+  vrm: VRM | null;
+}
+
 interface RendererState {
   vrm: VRM | null;
   animator: VrmAnimator | null;
@@ -214,14 +219,14 @@ function updateCameraAndWindow(
   camera.updateProjectionMatrix();
 }
 
-export function initializeVrmRenderer(config: VrmRendererConfig): void {
+export function initializeVrmRenderer(config: VrmRendererConfig): Promise<VrmRendererResult> {
   const { container, modelData, lightIntensity, onUpdateRef } = config;
 
   console.log("loadModel called, model size:", modelData.byteLength);
 
   if (container.hasChildNodes()) {
     console.log("render already has children, skipping");
-    return;
+    return Promise.resolve({ animator: createVrmAnimator(), vrm: null });
   }
 
   const scene = createScene();
@@ -237,8 +242,6 @@ export function initializeVrmRenderer(config: VrmRendererConfig): void {
 
   const animator = createVrmAnimator({
     enableBlink: true,
-    enableBreathing: false,
-    enableIdleMotion: false,
   });
 
   const state: RendererState = {
@@ -257,46 +260,52 @@ export function initializeVrmRenderer(config: VrmRendererConfig): void {
   const loader = new GLTFLoader();
   loader.register((parser: GLTFParser) => new VRMLoaderPlugin(parser));
 
-  loadVrmModel(
-    loader,
-    modelData,
-    (vrm) => {
-      state.vrm = vrm;
-      state.animator?.setVrm(vrm);
-      scene.add(vrm.scene);
-      console.log("VRM model added to scene with animations enabled");
-    },
-    (error) => {
-      console.error("Failed to load VRM:", error);
-    }
-  );
+  return new Promise((resolve) => {
+    loadVrmModel(
+      loader,
+      modelData,
+      (vrm) => {
+        state.vrm = vrm;
+        state.animator?.setVrm(vrm);
+        scene.add(vrm.scene);
+        console.log("VRM model added to scene with animations enabled");
+        resolve({ animator, vrm });
+      },
+      (error) => {
+        console.error("Failed to load VRM:", error);
+        resolve({ animator, vrm: null });
+      }
+    );
 
-  setupMouseEvents(renderer.domElement, state, scheduleInvalidateShadow);
+    setupMouseEvents(renderer.domElement, state, scheduleInvalidateShadow);
 
-  const animate = (): void => {
-    requestAnimationFrame(animate);
+    const animate = (): void => {
+      requestAnimationFrame(animate);
 
-    // Update animations (blink, breathing, idle motion, spring bones)
-    state.animator?.update();
+      // Update animations (blink, spring bones, VRMA)
+      state.animator?.update();
 
-    if (state.vrm) {
-      updateCameraAndWindow(
-        state.vrm,
-        camera,
-        renderer,
-        back,
-        state,
-        scheduleInvalidateShadow
-      );
-    }
+      // VRMAアニメーションが再生中でないときだけマウス追従を有効にする
+      const isVrmaPlaying = state.animator?.isVrmaPlaying() ?? false;
+      if (!isVrmaPlaying && onUpdateRef.current) {
+        onUpdateRef.current(state.vrm);
+      }
 
-    if (onUpdateRef.current) {
-      onUpdateRef.current(state.vrm);
-      scheduleInvalidateShadow();
-    }
+      if (state.vrm) {
+        updateCameraAndWindow(
+          state.vrm,
+          camera,
+          renderer,
+          back,
+          state,
+          scheduleInvalidateShadow
+        );
+        scheduleInvalidateShadow();
+      }
 
-    renderer.render(scene, camera);
-  };
+      renderer.render(scene, camera);
+    };
 
-  animate();
+    animate();
+  });
 }

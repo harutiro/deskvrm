@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   useMousePosition,
@@ -6,17 +6,23 @@ import {
   useVrmLoader,
   useDoubleClick,
 } from "@/hooks";
+import VrmaPanel from "@/components/VrmaPanel";
 import "@/ModelView.css";
 
 function ModelView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { vrm: vrmName } = useParams<{ vrm: string }>();
+  const [showVrmaPanel, setShowVrmaPanel] = useState(false);
 
   const mousePosition = useMousePosition();
   const { startDrag, stopDrag } = useWindowDrag(mousePosition);
-  const { handleClick, handleMouseDown } = useDoubleClick();
+  const { handleClick, handleMouseDown } = useDoubleClick({
+    onTripleClick: () => {
+      setShowVrmaPanel((prev) => !prev);
+    },
+  });
 
-  useVrmLoader({
+  const { animator, isLoading } = useVrmLoader({
     vrmName,
     containerRef,
     mousePosition,
@@ -33,13 +39,18 @@ function ModelView() {
   };
 
   return (
-    <div
-      ref={containerRef}
-      onClick={onClick}
-      onMouseDown={onMouseDown}
-      onMouseUp={stopDrag}
-      className="render"
-    />
+    <>
+      <div
+        ref={containerRef}
+        onClick={onClick}
+        onMouseDown={onMouseDown}
+        onMouseUp={stopDrag}
+        className="render"
+      />
+      {showVrmaPanel && !isLoading && (
+        <VrmaPanel animator={animator} onClose={() => setShowVrmaPanel(false)} />
+      )}
+    </>
   );
 }
 
